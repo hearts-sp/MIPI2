@@ -1,1 +1,1 @@
-from .attention import EntityAttentionLayer, EntityPoolingLayer
+from .attention_MI import EntityAttentionLayer_MI

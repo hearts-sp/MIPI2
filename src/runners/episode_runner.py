@@ -27,6 +27,9 @@ class EpisodeRunner:
         self.train_stats = {}
         self.test_stats = {}
 
+        self.cur_scen = "missing_map_name"
+        self.cur_battle_won = 0
+
         # Log the first run
         self.log_train_stats_t = -1000000
 
@@ -132,8 +135,9 @@ class EpisodeRunner:
             self.t_env += self.t
 
         cur_returns.append(episode_return)
-
-        if test_mode and (len(self.test_returns) == self.args.test_nepisode):
+        eval_nepisode = self.args.n_scenarios * self.args.eval_iters
+        test_log_interval = eval_nepisode if self.args.evaluate else self.args.test_nepisode
+        if test_mode and (len(self.test_returns) == test_log_interval):
             self._log(cur_returns, cur_stats, log_prefix)
         elif self.t_env - self.log_train_stats_t >= self.args.runner_log_interval:
             self._log(cur_returns, cur_stats, log_prefix)
@@ -141,6 +145,10 @@ class EpisodeRunner:
                 self.logger.log_stat("epsilon", self.mac.action_selector.epsilon, self.t_env)
             self.log_train_stats_t = self.t_env
 
+        self.cur_scen = self.env.log_scen
+        self.cur_battle_won = env_info.get("battle_won", 0)
+        if self.args.evaluate:
+            print("battle on {}, battle result {}".format(self.cur_scen, self.cur_battle_won))
         return self.batch
 
     def _log(self, returns, stats, prefix):

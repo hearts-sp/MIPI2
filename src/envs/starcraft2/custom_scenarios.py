@@ -1,4 +1,4 @@
-from numpy.random import RandomState
+#from numpy.random import RandomState
 from os.path import dirname, join
 from functools import partial
 from itertools import combinations_with_replacement, product
@@ -11,6 +11,7 @@ def get_all_unique_teams(all_types, min_len, max_len):
     all_uniq_counts = []
     for scen in all_uniq:
         curr_uniq = list(set(scen))
+        curr_uniq.sort(reverse=True)
         uniq_counts = list(zip([scen.count(u) for u in curr_uniq], curr_uniq))
         all_uniq_counts.append(uniq_counts)
     return all_uniq_counts
@@ -18,7 +19,7 @@ def get_all_unique_teams(all_types, min_len, max_len):
 
 def fixed_armies(ally_army, enemy_army, ally_centered=False, rotate=False,
                  separation=10, jitter=0, episode_limit=100,
-                 map_name="empty_passive", rs=None):
+                 map_name="empty_passive"):
     scenario_dict = {'scenarios': [(ally_army, enemy_army)],
                      'max_types_and_units_scenario': (ally_army, enemy_army),
                      'ally_centered': ally_centered,
@@ -33,10 +34,7 @@ def fixed_armies(ally_army, enemy_army, ally_centered=False, rotate=False,
 def symmetric_armies(army_spec, ally_centered=False,
                      rotate=False, separation=10,
                      jitter=0, episode_limit=100, map_name="empty_passive",
-                     n_extra_tags=0,
-                     rs=None):
-    if rs is None:
-        rs = RandomState()
+                     n_extra_tags=0):
 
     unique_sub_teams = []
     for unit_types, n_unit_range in army_spec:
@@ -65,10 +63,7 @@ def symmetric_armies(army_spec, ally_centered=False,
 def asymm_armies(army_spec, spec_delta, ally_centered=False,
                  rotate=False, separation=10,
                  jitter=0, episode_limit=100, map_name="empty_passive",
-                 n_extra_tags=0,
-                 rs=None):
-    if rs is None:
-        rs = RandomState()
+                 n_extra_tags=0):
 
     unique_sub_teams = []
     for unit_types, n_unit_range in army_spec:
@@ -106,37 +101,96 @@ Currently, we only support the same number of agents and enemies each episode.
 """
 
 custom_scenario_registry = {
-  "3-8m_symmetric": partial(symmetric_armies,
-                            [(('Marine',), (3, 8))],
-                            rotate=True,
-                            ally_centered=False,
-                            separation=14,
-                            jitter=1, episode_limit=100, map_name="empty_passive"),
-  "6-11m_mandown": partial(asymm_armies,
-                          [(('Marine',), (6, 11))],
-                          {'Marine': -1},
-                          rotate=True,
-                          ally_centered=False,
-                          separation=14,
-                          jitter=1, episode_limit=100, map_name="empty_passive"),
-  "3-8sz_symmetric": partial(symmetric_armies,
-                             [(('Stalker', 'Zealot'), (3, 8))],
+  "3-5sz_symmetric": partial(symmetric_armies,
+                             [(('Stalker', 'Zealot'), (3, 5))],
                              rotate=True,
                              ally_centered=False,
                              separation=14,
-                             jitter=1, episode_limit=150, map_name="empty_passive"),
-  "3-8MMM_symmetric": partial(symmetric_armies,
-                              [(('Marine', 'Marauder'), (3, 6)),
-                               (('Medivac',), (0, 2))],
+                             n_extra_tags=3,
+                             jitter=0, episode_limit=150, map_name="empty_passive"),
+  "6sz_symmetric": partial(symmetric_armies,
+                             [(('Stalker', 'Zealot'), (6, 6))],
+                             rotate=False,
+                             ally_centered=False,
+                             separation=14,
+                             n_extra_tags=2,
+                             jitter=0, episode_limit=150, map_name="empty_passive"),  
+  "7sz_symmetric": partial(symmetric_armies,
+                             [(('Stalker', 'Zealot'), (7, 7))],
+                             rotate=False,
+                             ally_centered=False,
+                             separation=14,
+                             n_extra_tags=1,
+                             jitter=0, episode_limit=150, map_name="empty_passive"),  
+  "8sz_symmetric": partial(symmetric_armies,
+                             [(('Stalker', 'Zealot'), (8, 8))],
+                             rotate=False,
+                             ally_centered=False,
+                             separation=14,
+                             n_extra_tags=0,
+                             jitter=0, episode_limit=150, map_name="empty_passive"),                      
+  "3-5MMM_symmetric": partial(symmetric_armies,
+                              [(('Marine', 'Marauder'), (3, 4)),
+                               (('Medivac',), (0, 1))],
                               rotate=True,
                               ally_centered=False,
                               separation=14,
-                              jitter=1, episode_limit=150, map_name="empty_passive"),
-  "3-8csz_symmetric": partial(symmetric_armies,
-                              [(('Stalker', 'Zealot'), (3, 6)),
-                               (('Colossus',), (0, 2))],
+                              n_extra_tags=3,
+                              jitter=0, episode_limit=150, map_name="empty_passive"),
+  "6MMM_symmetric": partial(symmetric_armies,
+                              [(('Marine', 'Marauder'), (5, 5)),
+                               (('Medivac',), (1, 1))],
+                              rotate=False,
+                              ally_centered=False,
+                              separation=14,
+                              n_extra_tags=2,
+                              jitter=0, episode_limit=150, map_name="empty_passive"),
+  "7MMM_symmetric": partial(symmetric_armies,
+                              [(('Marine', 'Marauder'), (6, 6)),
+                               (('Medivac',), (1, 1))],
+                              rotate=False,
+                              ally_centered=False,
+                              separation=14,
+                              n_extra_tags=1,
+                              jitter=0, episode_limit=150, map_name="empty_passive"),
+  "8MMM_symmetric": partial(symmetric_armies,
+                              [(('Marine', 'Marauder'), (7, 7)),
+                               (('Medivac',), (1, 1))],
+                              rotate=False,
+                              ally_centered=False,
+                              separation=14,
+                              n_extra_tags=0,
+                              jitter=0, episode_limit=150, map_name="empty_passive"),
+  "3-5csz_symmetric": partial(symmetric_armies,
+                              [(('Stalker', 'Zealot'), (3, 4)),
+                               (('Colossus',), (0, 1))],
                               rotate=True,
                               ally_centered=False,
                               separation=14,
-                              jitter=1, episode_limit=150, map_name="empty_passive"),
+                              n_extra_tags=3,
+                              jitter=0, episode_limit=150, map_name="empty_passive"),
+  "6csz_symmetric": partial(symmetric_armies,
+                              [(('Stalker', 'Zealot'), (5, 5)),
+                               (('Colossus',), (1, 1))],
+                              rotate=False,
+                              ally_centered=False,
+                              separation=14,
+                              n_extra_tags=2,
+                              jitter=0, episode_limit=150, map_name="empty_passive"),
+  "7csz_symmetric": partial(symmetric_armies,
+                              [(('Stalker', 'Zealot'), (6, 6)),
+                               (('Colossus',), (1, 1))],
+                              rotate=False,
+                              ally_centered=False,
+                              separation=14,
+                              n_extra_tags=1,
+                              jitter=0, episode_limit=150, map_name="empty_passive"),
+  "8csz_symmetric": partial(symmetric_armies,
+                              [(('Stalker', 'Zealot'), (7, 7)),
+                               (('Colossus',), (1, 1))],
+                              rotate=False,
+                              ally_centered=False,
+                              separation=14,
+                              n_extra_tags=0,
+                              jitter=0, episode_limit=150, map_name="empty_passive"),
 }

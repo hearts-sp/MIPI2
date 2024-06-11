@@ -19,14 +19,18 @@ class MultinomialActionSelector():
 
     def select_action(self, agent_inputs, avail_actions, t_env, test_mode=False):
         masked_policies = agent_inputs.clone()
-        masked_policies[avail_actions == 0.0] = 0.0
-
+        masked_policies[avail_actions == 0.0] = 0
+        
         self.epsilon = self.schedule.eval(t_env)
 
         if test_mode and self.test_greedy:
             picked_actions = masked_policies.max(dim=2)[1]
         else:
-            picked_actions = Categorical(masked_policies).sample().long()
+            picked_actions = Categorical(probs=masked_policies).sample().long()
+            random_numbers = th.rand_like(agent_inputs[:,:,0])
+            pick_random = (random_numbers < self.epsilon).long()
+            random_actions = Categorical(avail_actions.float()).sample().long()
+            picked_actions = pick_random * random_actions + (1 - pick_random) * picked_actions
 
         return picked_actions
 

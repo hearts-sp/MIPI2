@@ -1,12 +1,12 @@
-from .basic_controller import BasicMAC
+from .basic_controller_MI import BasicMAC_MI
 import torch as th
 
 
 # This multi-agent controller shares parameters between agents and takes
 # entities + observation masks as input
-class EntityMAC(BasicMAC):
+class EntityMAC_MI(BasicMAC_MI):
     def __init__(self, scheme, groups, args):
-        super(EntityMAC, self).__init__(scheme, groups, args)
+        super(EntityMAC_MI, self).__init__(scheme, groups, args)
 
     def _build_inputs(self, batch, t):
         # Assumes homogenous agents with entity + observation mask inputs.
@@ -25,12 +25,10 @@ class EntityMAC(BasicMAC):
                     batch["actions_onehot"][:, slice(t.start - 1, t.stop - 1)])
             entities.append(ent_acs)
         entities = th.cat(entities, dim=3)
-        if self.args.gt_mask_avail:
-            return (entities, batch["obs_mask"][:, t], batch["entity_mask"][:, t], batch["gt_mask"][:, t])
         return (entities, batch["obs_mask"][:, t], batch["entity_mask"][:, t])
 
     def _get_input_shape(self, scheme):
-        input_shape = scheme["entities"]["vshape"]
+        input_shape_entity = scheme["entities"]["vshape"]
         if self.args.entity_last_action:
-            input_shape += scheme["actions_onehot"]["vshape"][0]
-        return input_shape
+            input_shape_entity += scheme["actions_onehot"]["vshape"][0]
+        return (input_shape_entity)

@@ -8,7 +8,7 @@ import atexit
 from operator import attrgetter
 from copy import deepcopy
 import numpy as np
-from numpy.random import RandomState
+#from numpy.random import RandomState
 import enum
 import math
 from absl import logging
@@ -294,7 +294,7 @@ class StarCraft2CustomEnv(MultiAgentEnv):
         self._agent_race = None
         self._bot_race = None
         self._seed = seed
-        self.rs = RandomState(seed)
+        #self.rs = RandomState(seed)
 
         # generate armies w/ all possible types of units and the max number of total units
         ally_army, enemy_army = self._assign_pos(self.max_types_and_units_scenario)
@@ -442,7 +442,7 @@ class StarCraft2CustomEnv(MultiAgentEnv):
 
     def _assign_pos(self, scenario):
         if self.pos_rotate:
-            theta = self.rs.random() * 2 * np.pi
+            theta = np.random.random() * 2 * np.pi
         else:
             theta = np.pi
         if self.pos_ally_centered:
@@ -455,8 +455,8 @@ class StarCraft2CustomEnv(MultiAgentEnv):
             enemy_pos = (-ally_pos[0], -ally_pos[1])
 
         ally_army, enemy_army = scenario
-        return ([(num, unit, ally_pos + (self.rs.rand(2) - 0.5) * 2 * self.pos_jitter) for (num, unit) in ally_army],
-                [(num, unit, enemy_pos + (self.rs.rand(2) - 0.5) * 2 * self.pos_jitter) for (num, unit) in enemy_army])
+        return ([(num, unit, ally_pos + (np.random.rand(2) - 0.5) * 2 * self.pos_jitter) for (num, unit) in ally_army],
+                [(num, unit, enemy_pos + (np.random.rand(2) - 0.5) * 2 * self.pos_jitter) for (num, unit) in enemy_army])
 
 
     def _launch(self):
@@ -466,7 +466,7 @@ class StarCraft2CustomEnv(MultiAgentEnv):
 
         # Setting up the interface
         interface_options = sc_pb.InterfaceOptions(raw=True, score=False)
-        self._sc2_proc = self._run_config.start(window_size=self.window_size)
+        self._sc2_proc = self._run_config.start(window_size=self.window_size, want_rgb=False)
         self._controller = self._sc2_proc.controller
         self._bot_controller = self._sc2_proc.controller
 
@@ -1081,6 +1081,10 @@ class StarCraft2CustomEnv(MultiAgentEnv):
                 tag = self.enemy_tags[u_i - self.n_agents]
             entity[tag] = 1
             ind = self.max_n_agents + self.max_n_enemies + 2 * self.n_extra_tags
+            # ally tag
+            if u_i < self.n_agents:
+                entity[ind] = 1
+            ind += 1
             # available actions (if user controlled entity)
             if u_i < self.n_agents:
                 for ac_i in range(self.n_actions - 2):
@@ -1136,6 +1140,7 @@ class StarCraft2CustomEnv(MultiAgentEnv):
 
     def get_entity_size(self):
         nf_entity = self.max_n_agents + self.max_n_enemies + 2 * self.n_extra_tags  # tag
+        nf_entity += 1 # ally tag
         nf_entity += self.n_actions - 2  # available actions minus those that are always available
         nf_entity += self.unit_type_bits  # unit type
         # below are only observed for alive units (else zeros)
@@ -1656,7 +1661,8 @@ class StarCraft2CustomEnv(MultiAgentEnv):
             elif index is not None:
                 scenario = self.scenarios[index]
             else:
-                scenario = self.scenarios[self.rs.randint(len(self.scenarios))]
+                scenario = self.scenarios[np.random.randint(len(self.scenarios))]
+            self.log_scen = scenario
             armies = self._assign_pos(scenario)
 
             if unit_override is None:
@@ -1715,10 +1721,10 @@ class StarCraft2CustomEnv(MultiAgentEnv):
 
         if self.entity_scheme and self.random_tags:
             # assign random tags to agents (used for identifying entities as well as targets for actions)
-            self.enemy_tags = self.rs.choice(np.arange(self.max_n_enemies + self.n_extra_tags),
+            self.enemy_tags = np.random.choice(np.arange(self.max_n_enemies + self.n_extra_tags),
                                              size=self.n_enemies,
                                              replace=False)
-            self.ally_tags = self.rs.choice(np.arange(self.max_n_enemies + self.n_extra_tags,
+            self.ally_tags = np.random.choice(np.arange(self.max_n_enemies + self.n_extra_tags,
                                                       self.max_n_enemies + self.max_n_agents + 2 * self.n_extra_tags),
                                             size=self.n_agents,
                                             replace=False)
@@ -1879,6 +1885,7 @@ class StarCraft2CustomEnv(MultiAgentEnv):
                         "n_actions": self.get_total_actions(),
                         "n_agents": self.max_n_agents,
                         "n_entities": self.max_n_agents + self.max_n_enemies,
+                        "n_scenarios": len(self.scenarios),
                         "episode_limit": self.episode_limit}
         else:
             env_info = {"state_shape": self.get_state_size(),

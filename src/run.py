@@ -8,7 +8,7 @@ import time
 import json
 import threading
 import torch as th
-from numpy.random import RandomState
+#from numpy.random import RandomState
 from types import SimpleNamespace as SN
 from utils.logging import Logger
 from utils.timehelper import time_left, time_str
@@ -68,71 +68,10 @@ def run(_run, _config, _log):
     os._exit(os.EX_OK)
 
 
-def evaluate_sequential(args, runner, logger):
-    vw = None
-    if args.video_path is not None:
-        os.makedirs(dirname(args.video_path), exist_ok=True)
-        vid_basename_split = splitext(basename(args.video_path))
-        if vid_basename_split[1] == '.mp4':
-            vid_basename = ''.join(vid_basename_split)
-        else:
-            vid_basename = ''.join(vid_basename_split) + '.mp4'
-        vid_filename = join(dirname(args.video_path), vid_basename)
-        vw = imageio.get_writer(vid_filename, format='FFMPEG', mode='I',
-                                fps=args.fps, codec='h264', quality=10)
-
-    if args.eval_path is not None:
-        os.makedirs(dirname(args.eval_path), exist_ok=True)
-        eval_basename_split = splitext(basename(args.eval_path))
-        if eval_basename_split[1] == '.json':
-            eval_basename = ''.join(eval_basename_split)
-        else:
-            eval_basename = ''.join(eval_basename_split) + '.json'
-        eval_filename = join(dirname(args.eval_path), eval_basename)
-
-    res_dict = {}
-
-    if args.eval_all_scen:
-        if 'sc2' in args.env:
-            dict_key = 'scenarios'
-        else:
-            raise Exception("Environment (%s) does not incorporate multiple scenarios")
-        n_scen = len(args.env_args['scenario_dict'][dict_key])
-    else:
-        n_scen = 1
-    n_test_batches = max(1, args.test_nepisode // runner.batch_size)
-
-    for i in range(n_scen):
-        run_args = {'test_mode': True, 'vid_writer': vw,
-                    'test_scen': True}
-        if args.eval_all_scen:
-            run_args['index'] = i
-        for _ in range(n_test_batches):
-            runner.run(**run_args)
-        curr_stats = dict((k, v[-1][1]) for k, v in logger.stats.items())
-        if args.eval_all_scen:
-            curr_scen = args.env_args['scenario_dict'][dict_key][i]
-            # assumes that unique set of agents is a unique scenario
-            if 'sc2' in args.env:
-                scen_str = "-".join("%i%s" % (count, name[:3]) for count, name in sorted(curr_scen[0], key=lambda x: x[1]))
-            else:
-                scen_str = "".join(curr_scen[0])
-            res_dict[scen_str] = curr_stats
-        else:
-            res_dict.update(curr_stats)
-
-    if vw is not None:
-        vw.close()
-
-    if args.eval_path is not None:
-        with open(eval_filename, 'w') as f:
-            json.dump(res_dict, f)
-
-    if args.save_replay:
-        runner.save_replay()
-
-    runner.close_env()
-    logger.print_stats_summary()
+def evaluate_sequential(args, runner):
+    for _ in range(args.eval_iters):
+        for i in range(args.n_scenarios):
+            runner.run(test_mode=True, index=i)
 
 
 def run_sequential(args, logger):
@@ -143,14 +82,17 @@ def run_sequential(args, logger):
         args.entity_scheme = False
 
     if ('sc2custom' in args.env):
-        rs = RandomState(0)
-        args.env_args['scenario_dict'] = s_REGISTRY[args.scenario](rs=rs)
+        if args.evaluate:
+            args.env_args['scenario_dict'] = s_REGISTRY[args.eval_scenario]()
+        else:
+            args.env_args['scenario_dict'] = s_REGISTRY[args.scenario]()
     runner = r_REGISTRY[args.runner](args=args, logger=logger)
 
     # Set up schemes and groups here
     env_info = runner.get_env_info()
     args.n_agents = env_info["n_agents"]
     args.n_actions = env_info["n_actions"]
+    args.n_scenarios = env_info["n_scenarios"]
     if not args.entity_scheme:
         args.state_shape = env_info["state_shape"]
         # Default/Base scheme
@@ -211,7 +153,7 @@ def run_sequential(args, logger):
     if args.use_cuda:
         learner.cuda()
 
-    if args.checkpoint_path != "":
+    if args.checkpoint_path != "" and args.evaluate:
 
         timesteps = []
         timestep_to_load = 0
@@ -219,30 +161,34 @@ def run_sequential(args, logger):
         if not os.path.isdir(args.checkpoint_path):
             logger.console_logger.info("Checkpoint directiory {} doesn't exist".format(args.checkpoint_path))
             return
+        exp_checkpoint_path = os.path.join(args.checkpoint_path, args.scenario, args.name, str(args.seed))
+        print('evaluate {} on {}, with seed {}'.format(exp_checkpoint_path, args.eval_scenario, args.seed))
 
         # Go through all files in args.checkpoint_path
-        for name in os.listdir(args.checkpoint_path):
-            full_name = os.path.join(args.checkpoint_path, name)
+        for name in os.listdir(exp_checkpoint_path):
+            full_name = os.path.join(exp_checkpoint_path, name)
             # Check if they are dirs the names of which are numbers
             if os.path.isdir(full_name) and name.isdigit():
                 timesteps.append(int(name))
+        timesteps =sorted(timesteps)
 
-        if args.load_step == 0:
-            # choose the max timestep
-            timestep_to_load = max(timesteps)
-        else:
-            # choose the timestep closest to load_step
-            timestep_to_load = min(timesteps, key=lambda x: abs(x - args.load_step))
+        for timestep_to_load in timesteps:
+            if timestep_to_load < args.test_nepisode_start:
+                continue
+            model_path = os.path.join(exp_checkpoint_path, str(timestep_to_load))
 
-        model_path = os.path.join(args.checkpoint_path, str(timestep_to_load))
+            logger.console_logger.info("Loading model from {}".format(model_path))
+            learner.load_models(model_path)
+            runner.t_env = timestep_to_load
+            runner.log_train_stats_t = timestep_to_load
 
-        logger.console_logger.info("Loading model from {}".format(model_path))
-        learner.load_models(model_path, evaluate=args.evaluate)
-        runner.t_env = timestep_to_load
-
-        if args.evaluate or args.save_replay:
-            evaluate_sequential(args, runner, logger)
-            return
+            if args.evaluate:
+                evaluate_sequential(args, runner)
+            if timestep_to_load > args.test_nepisode_end:
+                break
+        runner.close_env()
+        time.sleep(10)
+        return
 
     # start training
     episode = 0
@@ -262,7 +208,7 @@ def run_sequential(args, logger):
         buffer.insert_episode_batch(episode_batch)
 
         if buffer.can_sample(args.batch_size):
-            for _ in range(args.training_iters):
+            for _ in range(1):
                 episode_sample = buffer.sample(args.batch_size)
 
                 # Truncate batch to only filled timesteps
@@ -277,7 +223,8 @@ def run_sequential(args, logger):
         # Execute test runs once in a while
         n_test_runs = max(1, args.test_nepisode // runner.batch_size)
         if (runner.t_env - last_test_T) / args.test_interval >= 1.0:
-
+            
+            logger.console_logger.info("current_exp: {} on {} with seed {}".format(args.name, args.scenario, args.seed))
             logger.console_logger.info("t_env: {} / {}".format(runner.t_env, args.t_max))
             logger.console_logger.info("Estimated time left: {}. Time passed: {}".format(
                 time_left(last_time, last_test_T, runner.t_env, args.t_max), time_str(time.time() - start_time)))
@@ -291,7 +238,7 @@ def run_sequential(args, logger):
                                 model_save_time == 0 or
                                 runner.t_env > args.t_max):
             model_save_time = runner.t_env
-            save_path = os.path.join(args.local_results_path, "models", args.unique_token, str(runner.t_env))
+            save_path = os.path.join(args.local_results_path, "models", args.scenario, args.name, str(args.seed), str(runner.t_env))
             #"results/models/{}".format(unique_token)
             os.makedirs(save_path, exist_ok=True)
             logger.console_logger.info("Saving models to {}".format(save_path))

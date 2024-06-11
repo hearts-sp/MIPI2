@@ -1,4 +1,4 @@
-from .q_learner import QLearner
+from .f_learner import FLearner
 
 REGISTRY = {}
-REGISTRY["q_learner"] = QLearner
+REGISTRY["f_learner"] = FLearner
